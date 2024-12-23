@@ -164,8 +164,40 @@ if os.path.exists(UPLOAD_DIR):
                         
                         # Display property scores
                         st.markdown("### Property Scores")
-                        properties_df = pd.DataFrame(quality_report.get_properties())
-                        st.dataframe(properties_df)
+                        
+                        try:
+                            # Get properties and handle different return formats
+                            properties = quality_report.get_properties()
+                            
+                            if isinstance(properties, list):
+                                # Handle list format
+                                properties_df = pd.DataFrame([{
+                                    'Property': prop['property_name'],
+                                    'Score': f"{prop['score']:.3f}",
+                                    'Description': prop.get('description', 'N/A')
+                                } for prop in properties])
+                            elif isinstance(properties, dict):
+                                # Handle dictionary format
+                                properties_df = pd.DataFrame([{
+                                    'Property': name,
+                                    'Score': f"{score:.3f}",
+                                    'Description': 'N/A'
+                                } for name, score in properties.items()])
+                            else:
+                                # Handle string format or other cases
+                                st.write("Quality Report Properties:", properties)
+                                properties_df = pd.DataFrame({
+                                    'Property': ['Overall Quality'],
+                                    'Score': [f"{quality_report.get_score():.3f}"],
+                                    'Description': ['Overall synthetic data quality score']
+                                })
+                            
+                            # Display using native Streamlit table
+                            st.table(properties_df)
+                            
+                        except Exception as e:
+                            st.error(f"Error processing quality report: {str(e)}")
+                            st.write("Raw Quality Report:", quality_report)
                         
                         # Column Visualization
                         st.markdown("### Column Visualization")
@@ -215,6 +247,13 @@ if os.path.exists(UPLOAD_DIR):
                                 )
                                 
                                 if second_column:
+                                    st.info("""
+                                    Pair plot shows the relationship between two columns:
+                                    - For numerical pairs: scatter plot with density contours
+                                    - For categorical pairs: heatmap of frequencies
+                                    - For mixed types: box plots or violin plots
+                                    """)
+                                    
                                     pair_fig = get_column_pair_plot(
                                         real_data=original_df,
                                         synthetic_data=synthetic_df,
