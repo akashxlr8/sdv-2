@@ -1,0 +1,87 @@
+{
+    "tables": {
+        "PRODUCTS_REAL_DATA": {
+            "primary_key": "productID",
+            "columns": {
+                "productID": {
+                    "sdtype": "id",
+                    "regex_format": "[0-9]"
+                },
+                "productName": {
+                    "sdtype": "categorical"
+                },
+                "supplierID": {
+                    "sdtype": "numerical",
+                    "computer_representation": "Int64"
+                },
+                "categoryID": {
+                    "sdtype": "numerical",
+                    "computer_representation": "Int32"
+                },
+                "quantityPerUnit": {
+                    "sdtype": "categorical"
+                },
+                "unitPrice": {
+                    "sdtype": "numerical",
+                    "computer_representation": "Float"
+                },
+                "unitsInStock": {
+                    "sdtype": "numerical",
+                    "computer_representation": "Int64"
+                },
+                "unitsOnOrder": {
+                    "sdtype": "numerical",
+                    "computer_representation": "Int64"
+                },
+                "reorderLevel": {
+                    "sdtype": "numerical",
+                    "computer_representation": "Int64"
+                },
+                "discontinued": {
+                    "sdtype": "boolean"
+                }
+            },
+            "METADATA_SPEC_VERSION": "SINGLE_TABLE_V1"
+        }
+    },
+    "relationships": [],
+    "dtype_format": "numpy",
+    "constraints": [
+        {
+            "constraint_class": "ScalarRange",
+            "constraint_parameters": {
+                "column_name": "productID",
+                "low_value": 0,
+                "high_value": 100,
+                "strict_boundaries": false
+            }
+        },
+        {
+            "constraint_class": "ScalarRange",
+            "constraint_parameters": {
+                "column_name": "supplierID",
+                "low_value": 1,
+                "high_value": 20,
+                "strict_boundaries": false
+            }
+        },
+        {
+            "constraint_class": "ScalarRange",
+            "constraint_parameters": {
+                "column_name": "categoryID",
+                "low_value": 1,
+                "high_value": 5,
+                "strict_boundaries": false
+            }
+        },
+        {
+            "constraint_class": "ScalarRange",
+            "constraint_parameters": {
+                "column_name": "quantityPerUnit",
+                "low_value": 1,
+                "high_value": 3,
+                "strict_boundaries": false
+            }
+        }
+    ]
+}
