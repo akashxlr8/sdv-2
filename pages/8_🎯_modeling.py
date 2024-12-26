@@ -69,27 +69,18 @@ if os.path.exists(UPLOAD_DIR):
                     # Update column properties
                     for column_name, column_props in table_metadata['columns'].items():
                         if column_name in metadata.columns:
-                            # If column is primary key, set it as 'id' type with minimal properties
-                            if 'primary_key' in table_metadata and column_name == table_metadata['primary_key']:
-                                metadata.update_column(
-                                    column_name,
-                                    sdtype='id'
-                                )
-                            else:
-                                update_args = {'sdtype': column_props['sdtype']}
-                                
-                                # Add other properties if they exist and column is not an id
-                                if column_props['sdtype'] != 'id':
-                                    if 'computer_representation' in column_props:
-                                        update_args['computer_representation'] = column_props['computer_representation']
-                                    if 'datetime_format' in column_props:
-                                        update_args['datetime_format'] = column_props['datetime_format']
-                                
-                                metadata.update_column(column_name, **update_args)
+                            update_args = {'sdtype': column_props['sdtype']}
+                            
+                            # Add other properties if they exist
+                            if 'computer_representation' in column_props:
+                                update_args['computer_representation'] = column_props['computer_representation']
+                            if 'datetime_format' in column_props:
+                                update_args['datetime_format'] = column_props['datetime_format']
+                            
+                            metadata.update_column(column_name, **update_args)
                     
-                    # Set primary key after all column updates
-                    if 'primary_key' in table_metadata:
-                        metadata.set_primary_key(table_metadata['primary_key'])
+                    # Explicitly set primary key to None
+                    metadata.set_primary_key(None)
                     
                     st.success("Metadata loaded successfully!")
                     
