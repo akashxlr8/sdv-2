@@ -69,17 +69,27 @@ if os.path.exists(UPLOAD_DIR):
                     # Update column properties
                     for column_name, column_props in table_metadata['columns'].items():
                         if column_name in metadata.columns:
-                            if column_props['sdtype'] == 'id':
-                                # Special handling for ID columns
-                                metadata.set_primary_key(column_name)
+                            # If column is primary key, set it as 'id' type with minimal properties
+                            if 'primary_key' in table_metadata and column_name == table_metadata['primary_key']:
+                                metadata.update_column(
+                                    column_name,
+                                    sdtype='id'
+                                )
                             else:
-                                # Update other columns
                                 update_args = {'sdtype': column_props['sdtype']}
-                                if 'computer_representation' in column_props:
-                                    update_args['computer_representation'] = column_props['computer_representation']
-                                if 'datetime_format' in column_props:
-                                    update_args['datetime_format'] = column_props['datetime_format']
+                                
+                                # Add other properties if they exist and column is not an id
+                                if column_props['sdtype'] != 'id':
+                                    if 'computer_representation' in column_props:
+                                        update_args['computer_representation'] = column_props['computer_representation']
+                                    if 'datetime_format' in column_props:
+                                        update_args['datetime_format'] = column_props['datetime_format']
+                                
                                 metadata.update_column(column_name, **update_args)
+                    
+                    # Set primary key after all column updates
+                    if 'primary_key' in table_metadata:
+                        metadata.set_primary_key(table_metadata['primary_key'])
                     
                     st.success("Metadata loaded successfully!")
                     
@@ -90,7 +100,7 @@ if os.path.exists(UPLOAD_DIR):
                     with col1:
                         epochs = st.number_input("Training Epochs", min_value=1, value=300)
                         batch_size = st.number_input("Batch Size", min_value=1, value=500)
-                        log_frequency = st.number_input("Log Frequency", min_value=1, value=100)
+                        log_frequency = st.checkbox("Log Frequency", value=True)
                         
                     with col2:
                         generator_dim = st.text_input("Generator Dimensions", "128, 128, 128")
