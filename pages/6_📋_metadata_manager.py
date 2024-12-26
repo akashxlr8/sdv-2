@@ -380,25 +380,44 @@ if os.path.exists(UPLOAD_DIR):
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         column = st.selectbox("Column", metadata.columns.keys())
+                        column_sdtype = metadata.columns[column]['sdtype']
+                    
                     with col2:
-                        low_value = st.number_input("Minimum Value", value=0)
+                        low_value = get_value_input_for_sdtype(
+                            column_sdtype,
+                            "Minimum Value",
+                            f"scalar_range_low_{column}"
+                        )
+                    
                     with col3:
-                        high_value = st.number_input("Maximum Value", value=100)
+                        high_value = get_value_input_for_sdtype(
+                            column_sdtype,
+                            "Maximum Value",
+                            f"scalar_range_high_{column}"
+                        )
                     
                     strict = st.checkbox("Strict Boundaries", value=False)
                     
                     if st.button("Add ScalarRange Constraint"):
-                        new_constraint = {
-                            'constraint_class': 'ScalarRange',
-                            'constraint_parameters': {
-                                'column_name': column,
-                                'low_value': low_value,
-                                'high_value': high_value,
-                                'strict_boundaries': strict
+                        try:
+                            # Convert values to appropriate type based on sdtype
+                            if column_sdtype in ['numerical', 'id']:
+                                low_value = float(low_value)
+                                high_value = float(high_value)
+                            
+                            new_constraint = {
+                                'constraint_class': 'ScalarRange',
+                                'constraint_parameters': {
+                                    'column_name': column,
+                                    'low_value': low_value,  # Will be stored as actual number
+                                    'high_value': high_value,  # Will be stored as actual number
+                                    'strict_boundaries': strict
+                                }
                             }
-                        }
-                        st.session_state.constraints.append(new_constraint)
-                        st.success("Constraint added!")
+                            st.session_state.constraints.append(new_constraint)
+                            st.success("Constraint added!")
+                        except ValueError:
+                            st.error("Invalid numeric values provided for ScalarRange constraint")
 
                 elif constraint_type == "Positive":
                     column = st.selectbox("Column", metadata.columns.keys())
