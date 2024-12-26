@@ -501,8 +501,11 @@ if os.path.exists(UPLOAD_DIR):
                             "Date Value",
                             help="Select the date to compare against"
                         )
-                        # Convert to string format
-                        value = value.strftime('%Y-%m-%d')
+                        # Handle tuple and None cases
+                        if isinstance(value, tuple):
+                            value = value[0].strftime('%Y-%m-%d') if len(value) > 0 else datetime.today().strftime('%Y-%m-%d')
+                        else:
+                            value = value.strftime('%Y-%m-%d') if value else datetime.today().strftime('%Y-%m-%d')
                     else:
                         value = st.number_input("Value", value=0)
                     
