@@ -261,7 +261,7 @@ with tab1:
     json_files = [f for f in os.listdir(UPLOAD_DIR) if f.endswith('.json')]
     
     if not json_files:
-        st.info("No metadata files found. Use the 'Create New Metadata' tab to create one.")
+        st.info("No metadata files found. Use the 'Create New Metadata' tab to create one and manage them in the File Manager.")
     else:
         selected_metadata_file = st.selectbox(
             "Select a metadata file to load:",

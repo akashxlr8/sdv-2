@@ -70,7 +70,7 @@ try:
                     st.success(f"""
                     File saved successfully as: {save_filename}
                     
-                    You can view and manage your files in the 'Uploaded Files' page.
+                    You can view and manage your files in the 'File Manager' page.
                     """)
                 except Exception as e:
                     st.error(f"Save error: {str(e)}")

@@ -6,12 +6,12 @@ from datetime import datetime
 # Use the same upload directory as defined in the data analysis page
 UPLOAD_DIR = "uploads"
 
-st.title("Uploaded Files")
+st.title("File Manager")
 
 st.markdown("""
-### List of Uploaded Files
+### File Manager
 
-View, download, or remove uploaded files:
+View, manage, and organize your files:
 """)
 
 def delete_file(file_path):
