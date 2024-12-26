@@ -44,6 +44,10 @@ def detect_single_table_metadata(df, table_name):
     """Detect metadata for a single table using SDV"""
     metadata = SingleTableMetadata()
     metadata.detect_from_dataframe(data=df)
+    
+    # Explicitly remove primary key setting
+    metadata.set_primary_key(None)
+    
     return metadata
 
 def display_column_metadata_editor(metadata, table_name, column_name, column_metadata):
@@ -356,9 +360,8 @@ with tab1:
                         metadata.update_column(column_name, **update_args)
                     
                     st.session_state.metadata_dict[selected_metadata_file] = metadata
-                    st.session_state.constraints = metadata_content.get('constraints', [])
                     st.rerun()
-                
+
             except Exception as e:
                 st.error(f"Error loading metadata: {str(e)}")
 
@@ -427,6 +430,10 @@ if os.path.exists(UPLOAD_DIR):
                     df = pd.read_csv(file_path)
                     table_name = os.path.splitext(selected_file)[0].upper()
                     metadata = detect_single_table_metadata(df, table_name)
+                    
+                    # Explicitly remove primary key setting for single table
+                    metadata.set_primary_key(None)
+                    
                     st.session_state.metadata_dict[selected_file] = metadata
                 
                 # Display metadata editor
