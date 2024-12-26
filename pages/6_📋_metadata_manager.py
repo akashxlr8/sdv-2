@@ -419,10 +419,21 @@ if os.path.exists(UPLOAD_DIR):
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         column = st.selectbox("Column", metadata.columns.keys())
+                        column_sdtype = metadata.columns[column]['sdtype']
+                    
                     with col2:
-                        low_value = st.number_input("Minimum Value", value=0)
+                        low_value = get_value_input_for_sdtype(
+                            column_sdtype,
+                            "Minimum Value",
+                            f"between_low_{column}"
+                        )
+                    
                     with col3:
-                        high_value = st.number_input("Maximum Value", value=100)
+                        high_value = get_value_input_for_sdtype(
+                            column_sdtype,
+                            "Maximum Value",
+                            f"between_high_{column}"
+                        )
                     
                     if st.button("Add Between Constraint"):
                         new_constraint = {
