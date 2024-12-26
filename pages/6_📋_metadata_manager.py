@@ -271,7 +271,10 @@ with tab1:
                     metadata_content = json.load(f)
                 
                 st.success("Metadata loaded successfully!")
-                st.json(metadata_content)
+                
+                # Show metadata content in an expander
+                with st.expander("View Raw Metadata"):
+                    st.json(metadata_content)
                 
                 # Show edit button
                 if st.button("Edit This Metadata"):
