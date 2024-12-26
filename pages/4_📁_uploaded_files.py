@@ -31,6 +31,18 @@ def get_file_type(filename):
     }
     return type_mapping.get(extension, 'Unknown')
 
+def get_file_source(filename):
+    # Check file extension first
+    extension = filename.split('.')[-1].lower()
+    
+    # Metadata files are always generated
+    if extension == 'json':
+        return 'Generated'
+    
+    # For other files, check if they contain indicators of being generated
+    generated_indicators = ['synthetic', 'model_ctgan', 'generated']
+    return 'Generated' if any(indicator in filename.lower() for indicator in generated_indicators) else 'Uploaded'
+
 def get_file_details(file_path):
     file_size = os.path.getsize(file_path)
     creation_time = datetime.fromtimestamp(os.path.getctime(file_path))
