@@ -1,15 +1,10 @@
 import streamlit as st
 import pandas as pd
 import os
+import pickle
 from datetime import datetime
-from backend.logic import (
-    create_scalar_range_constraints,
-    setup_metadata,
-    create_synthesizer,
-    save_metadata,
-    data_validator
-)
-from utils.file_naming import generate_filename
+from sdv.metadata import SingleTableMetadata
+from sdv.single_table import CTGANSynthesizer
 
 UPLOAD_DIR = "uploads"
 
@@ -18,104 +13,82 @@ st.title("Synthetic Data Generation")
 st.markdown("""
 ### Generate Synthetic Data
 
-Select files from your uploads to generate synthetic data:
+1. Select your trained model
+2. Configure generation parameters
+3. Generate synthetic data
 """)
 
 if os.path.exists(UPLOAD_DIR):
-    files = os.listdir(UPLOAD_DIR)
+    # Get available model files
+    model_files = [f for f in os.listdir(UPLOAD_DIR) if f.endswith('.pkl')]
     
-    if not files:
-        st.info("No files available. Please upload files in the Data Analysis page first.")
+    if not model_files:
+        st.warning("No trained models found. Please train a model first in the Modeling page.")
     else:
-        # Filter only CSV files
-        csv_files = [f for f in files if f.endswith('.csv')]
+        # Model selection
+        selected_model = st.selectbox(
+            "Select trained model:",
+            model_files
+        )
         
-        if not csv_files:
-            st.warning("No CSV files found. Please upload CSV files for synthetic data generation.")
-        else:
-            # File selection
-            selected_files = st.multiselect(
-                "Select CSV files for synthetic data generation:",
-                csv_files
-            )
-            
-            if selected_files:
-                # Display selected file details
-                st.markdown("### Selected Files:")
-                for file in selected_files:
-                    file_path = os.path.join(UPLOAD_DIR, file)
-                    df = pd.read_csv(file_path)
-                    st.info(f"""
-                    **{file}**
-                    - Rows: {len(df)}
-                    - Columns: {len(df.columns)}
-                    """)
+        if selected_model:
+            try:
+                # Load the model
+                model_path = os.path.join(UPLOAD_DIR, selected_model)
+                with open(model_path, 'rb') as f:
+                    model = pickle.load(f)
                 
-                # Process button
+                # Generation parameters
+                num_rows = st.number_input(
+                    "Number of rows to generate:", 
+                    min_value=1, 
+                    value=100
+                )
+                
+                # Initialize filename in session state if not exists
+                file_key = f"synthetic_filename_{selected_model}"
+                if file_key not in st.session_state:
+                    default_name = f"synthetic_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    st.session_state[file_key] = default_name
+                
+                # Custom filename input
+                custom_filename = st.text_input(
+                    "Save as:",
+                    value=st.session_state[file_key],
+                    help="You can modify the filename (without extension)",
+                    key=f"input_{file_key}"
+                )
+                custom_filename = custom_filename.strip() if custom_filename else ""
+                
+                # Update session state
+                st.session_state[file_key] = custom_filename
+                
                 if st.button("Generate Synthetic Data"):
-                    try:
-                        # Create data dictionary
-                        data = {}
-                        for file in selected_files:
-                            file_path = os.path.join(UPLOAD_DIR, file)
-                            table_name = os.path.splitext(file)[0].upper()
-                            data[table_name] = pd.read_csv(file_path)
-                        
-                        # Validate data
-                        violations = data_validator(data)
-                        if violations:
-                            st.warning("Data validation warnings:")
-                            for violation in violations:
-                                st.write(f"- {violation}")
-                        
-                        with st.spinner("Setting up metadata..."):
-                            # Setup metadata
-                            metadata = setup_metadata(data)
-                            
-                            # Create constraints
-                            constraints = create_scalar_range_constraints()
-                            
-                            # Create synthesizer
-                            synthesizer = create_synthesizer(metadata, constraints)
-                            
-                            # Fit the synthesizer
-                            synthesizer.fit(data)
-                            
-                            st.success("Metadata and synthesizer setup complete!")
-                        
-                        # After metadata setup
-                        if metadata:
-                            # Save metadata with proper filename
-                            base_filename = generate_filename(
-                                "metadata",
-                                source_files=selected_files
-                            )
-                            metadata_filename = f"{base_filename}.json"
-                            metadata_path = os.path.join(UPLOAD_DIR, metadata_filename)
-                            
-                            # Save metadata using the save_metadata function
-                            save_metadata(metadata, metadata_path)
-                            st.success(f"Metadata saved as: {metadata_filename}")
-                        
+                    with st.spinner("Generating synthetic data..."):
                         # Generate synthetic data
-                        num_rows = st.number_input("Number of rows to generate:", min_value=1, value=100)
+                        synthetic_data = model.sample(num_rows=num_rows)
                         
-                        if st.button("Generate"):
-                            with st.spinner("Generating synthetic data..."):
-                                synthetic_data = synthesizer.sample(num_rows=num_rows)
-                                
-                                # Save synthetic data
-                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                                for table_name, df in synthetic_data.items():
-                                    output_filename = f"synthetic_{table_name.lower()}_{timestamp}.csv"
-                                    output_path = os.path.join(UPLOAD_DIR, output_filename)
-                                    df.to_csv(output_path, index=False)
-                                    
-                                    st.success(f"Generated synthetic data saved as: {output_filename}")
-                                    st.dataframe(df.head())
-                                st.rerun()
-                    
-                    except Exception as e:
-                        st.error(f"Error generating synthetic data: {str(e)}")
+                        # Save synthetic data
+                        if not custom_filename:
+                            st.error("Filename cannot be empty")
+                            st.stop()
+                        
+                        # Ensure .csv extension
+                        if not custom_filename.endswith('.csv'):
+                            output_filename = f"{custom_filename}.csv"
+                        else:
+                            output_filename = custom_filename
+                        
+                        output_path = os.path.join(UPLOAD_DIR, output_filename)
+                        synthetic_data.to_csv(output_path, index=False)
+                        
+                        st.success(f"Generated synthetic data saved as: {output_filename}")
+                        
+                        # Display preview
+                        st.markdown("### Data Preview")
+                        st.dataframe(synthetic_data.head())
+                        
+            except Exception as e:
+                st.error(f"Error loading model or generating data: {str(e)}")
 else:
-    st.warning("Upload directory does not exist. Please upload files first.") 
+    st.warning("Upload directory does not exist. Please check your configuration.")
