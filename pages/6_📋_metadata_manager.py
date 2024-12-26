@@ -371,7 +371,19 @@ if os.path.exists(UPLOAD_DIR):
                 st.subheader("Add New Constraint")
                 constraint_type = st.selectbox(
                     "Constraint Type",
-                    ["ScalarRange", "OneHotEncoding", "Positive", "Negative", "Between", "UniqueCombinations"],
+                    [
+                        "ScalarRange",
+                        "ScalarInequality",
+                        "Positive",
+                        "Negative",
+                        "Between",
+                        "OneHotEncoding",
+                        "Inequality",
+                        "FixedIncrements",
+                        "FixedCombinations",
+                        "Range",
+                        "CustomLogic"
+                    ],
                     help="Select the type of constraint to add"
                 )
 
