@@ -276,7 +276,69 @@ with tab1:
                 with st.expander("View Raw Metadata"):
                     st.json(metadata_content)
                 
-                # Show edit button
+                # Load existing constraints
+                st.session_state.constraints = metadata_content.get('constraints', [])
+                
+                # Display and edit existing constraints
+                if st.session_state.constraints:
+                    st.markdown("### Existing Constraints")
+                    for i, constraint in enumerate(st.session_state.constraints):
+                        with st.expander(f"Constraint {i+1}: {constraint['constraint_class']}"):
+                            # Display current parameters
+                            st.json(constraint['constraint_parameters'])
+                            
+                            # Add edit functionality based on constraint type
+                            if constraint['constraint_class'] == 'ScalarRange':
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    # Get table name from metadata content
+                                    table_name = list(metadata_content['tables'].keys())[0]
+                                    metadata = SingleTableMetadata()
+                                    metadata.load_from_dict(metadata_content['tables'][table_name])
+                                    column = st.selectbox(
+                                        "Column", 
+                                        metadata.columns.keys(),
+                                        key=f"edit_scalar_col_{i}",
+                                        index=list(metadata.columns.keys()).index(constraint['constraint_parameters']['column_name'])
+                                    )
+                                with col2:
+                                    low_value = st.number_input(
+                                        "Minimum Value", 
+                                        value=constraint['constraint_parameters']['low_value'],
+                                        key=f"edit_scalar_low_{i}"
+                                    )
+                                with col3:
+                                    high_value = st.number_input(
+                                        "Maximum Value", 
+                                        value=constraint['constraint_parameters']['high_value'],
+                                        key=f"edit_scalar_high_{i}"
+                                    )
+                                strict = st.checkbox(
+                                    "Strict Boundaries", 
+                                    value=constraint['constraint_parameters']['strict_boundaries'],
+                                    key=f"edit_scalar_strict_{i}"
+                                )
+                                
+                                if st.button("Update Constraint", key=f"update_{i}"):
+                                    st.session_state.constraints[i] = {
+                                        'constraint_class': 'ScalarRange',
+                                        'constraint_parameters': {
+                                            'column_name': column,
+                                            'low_value': low_value,
+                                            'high_value': high_value,
+                                            'strict_boundaries': strict
+                                        }
+                                    }
+                                    st.success("Constraint updated!")
+                                    st.rerun()
+                            
+                            # Add remove button
+                            if st.button(f"Remove Constraint", key=f"remove_{i}"):
+                                st.session_state.constraints.pop(i)
+                                st.success("Constraint removed!")
+                                st.rerun()
+                
+                # Show edit button for metadata
                 if st.button("Edit This Metadata"):
                     st.session_state.metadata_dict = {}
                     table_name = list(metadata_content['tables'].keys())[0]
