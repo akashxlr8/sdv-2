@@ -51,6 +51,7 @@ def get_file_details(file_path):
     file_details = {
         "Filename": filename,
         "Type": get_file_type(filename),
+        "Source": get_file_source(filename),
         "Size (KB)": f"{file_size/1024:.2f}",
         "Upload Date": creation_time.strftime("%Y-%m-%d %H:%M:%S")
     }
@@ -117,7 +118,7 @@ if os.path.exists(UPLOAD_DIR):
                     if st.button(f"🗑️ Delete {file}"):
                         if delete_file(file_path):
                             st.success(f"Successfully deleted {file}")
-                            st.experimental_rerun()
+                            st.rerun()
             
             # Add a button to delete all files
             st.markdown("---")
@@ -127,6 +128,6 @@ if os.path.exists(UPLOAD_DIR):
                         file_path = os.path.join(UPLOAD_DIR, file)
                         delete_file(file_path)
                     st.success("All files deleted successfully!")
-                    st.experimental_rerun()
+                    st.rerun()
 else:
     st.warning("Upload directory does not exist. Please upload files first.") 
