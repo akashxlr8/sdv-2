@@ -205,6 +205,25 @@ def save_metadata_json(metadata, table_name, timestamp):
     
     return metadata_filename
 
+def get_value_input_for_sdtype(sdtype, label, key):
+    """Get appropriate input widget based on column sdtype"""
+    if sdtype == 'datetime':
+        value = st.date_input(
+            label,
+            help="Select the date",
+            key=key
+        )
+        return value.strftime('%Y-%m-%d')
+    elif sdtype in ['numerical', 'id']:
+        # For numerical types, return actual number instead of string
+        return float(st.number_input(
+            label,
+            value=0,
+            key=key
+        ))
+    else:
+        return st.text_input(label, key=key)
+
 st.title("Metadata Manager")
 
 st.markdown("""
