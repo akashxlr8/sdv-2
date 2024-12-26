@@ -375,6 +375,76 @@ if os.path.exists(UPLOAD_DIR):
                     help="Select the type of constraint to add"
                 )
 
+                # Add ScalarInequality constraint section
+                if constraint_type == "ScalarInequality":
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        column = st.selectbox("Column", metadata.columns.keys())
+                    with col2:
+                        relation = st.selectbox(
+                            "Relation",
+                            [">", ">=", "<", "<="],
+                            help="Select the inequality relation"
+                        )
+                    
+                    # Check column type and show appropriate input
+                    column_sdtype = metadata.columns[column]['sdtype']
+                    if column_sdtype == 'datetime':
+                        value = st.date_input(
+                            "Date Value",
+                            help="Select the date to compare against"
+                        )
+                        # Convert to string format
+                        value = value.strftime('%Y-%m-%d')
+                    else:
+                        value = st.number_input("Value", value=0)
+                    
+                    if st.button("Add ScalarInequality Constraint"):
+                        new_constraint = {
+                            'constraint_class': 'ScalarInequality',
+                            'constraint_parameters': {
+                                'column_name': column,
+                                'relation': relation,
+                                'value': value
+                            }
+                        }
+                        st.session_state.constraints.append(new_constraint)
+                        st.success("Constraint added!")
+
+                # Custom Logic section
+                if constraint_type == "CustomLogic":
+                    st.markdown("""
+                    ### Custom Logic Configuration
+                    Define relationships between columns using custom logic.
+                    """)
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        source_column = st.selectbox("Source Column", metadata.columns.keys())
+                    with col2:
+                        target_column = st.selectbox("Target Column", metadata.columns.keys())
+                    
+                    transform_function = st.text_area(
+                        "Python Transform Function",
+                        value="""def transform(source_value):
+    # Example: Convert full name to user ID
+    words = source_value.split()
+    return ''.join(word[:2].upper() for word in words)""",
+                        help="Define a Python function that transforms the source column value to the target column value"
+                    )
+                    
+                    if st.button("Add Custom Logic Constraint"):
+                        new_constraint = {
+                            'constraint_class': 'CustomLogic',
+                            'constraint_parameters': {
+                                'source_column': source_column,
+                                'target_column': target_column,
+                                'transform_function': transform_function
+                            }
+                        }
+                        st.session_state.constraints.append(new_constraint)
+                        st.success("Custom Logic Constraint added!")
+
                 # Different inputs based on constraint type
                 if constraint_type == "ScalarRange":
                     col1, col2, col3 = st.columns(3)
