@@ -436,6 +436,100 @@ if os.path.exists(UPLOAD_DIR):
                         st.session_state.constraints.append(new_constraint)
                         st.success("Constraint added!")
 
+                elif constraint_type == "Inequality":
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        low_column = st.selectbox(
+                            "Low Column",
+                            [col for col, info in metadata.columns.items() 
+                             if info['sdtype'] in ['numerical', 'datetime']],
+                            help="Column with lower values"
+                        )
+                    
+                    with col2:
+                        high_column = st.selectbox(
+                            "High Column",
+                            [col for col, info in metadata.columns.items() 
+                             if info['sdtype'] in ['numerical', 'datetime']],
+                            help="Column with higher values"
+                        )
+
+                # Add after the Inequality constraint section
+
+                elif constraint_type == "FixedIncrements":
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        column = st.selectbox(
+                            "Column",
+                            metadata.columns.keys(),
+                            help="Select the column that must follow fixed increments"
+                        )
+                    with col2:
+                        increment = st.number_input(
+                            "Increment Value",
+                            min_value=1,
+                            value=1,
+                            help="The size of the increment. Must be a positive integer"
+                        )
+                    
+                    if st.button("Add FixedIncrements Constraint"):
+                        new_constraint = {
+                            'constraint_class': 'FixedIncrements',
+                            'constraint_parameters': {
+                                'column_name': column,
+                                'increment': int(increment)
+                            }
+                        }
+                        st.session_state.constraints.append(new_constraint)
+                        st.success("Constraint added!")
+
+                # Add after the FixedIncrements constraint section
+
+                elif constraint_type == "FixedCombinations":
+                    # Allow selection of multiple columns
+                    selected_columns = st.multiselect(
+                        "Select Columns",
+                        metadata.columns.keys(),
+                        help="Select two or more columns whose combinations should be fixed"
+                    )
+                    
+                    # Only show the add button if 2 or more columns are selected
+                    if len(selected_columns) >= 2:
+                        if st.button("Add FixedCombinations Constraint"):
+                            new_constraint = {
+                                'constraint_class': 'FixedCombinations',
+                                'constraint_parameters': {
+                                    'column_names': selected_columns
+                                }
+                            }
+                            st.session_state.constraints.append(new_constraint)
+                            st.success("Constraint added!")
+                    else:
+                        st.info("Please select at least 2 columns to create a FixedCombinations constraint.")
+
+                # Add after the FixedCombinations constraint section
+
+                elif constraint_type == "OneHotEncoding":
+                    # Allow selection of multiple columns that form the one-hot encoding
+                    selected_columns = st.multiselect(
+                        "Select One-Hot Encoded Columns",
+                        metadata.columns.keys(),
+                        help="Select columns that together form a one-hot encoding (exactly one column should be 1, others 0)"
+                    )
+                    
+                    if len(selected_columns) >= 2:
+                        if st.button("Add OneHotEncoding Constraint"):
+                            new_constraint = {
+                                'constraint_class': 'OneHotEncoding',
+                                'constraint_parameters': {
+                                    'column_names': selected_columns
+                                }
+                            }
+                            st.session_state.constraints.append(new_constraint)
+                            st.success("Constraint added!")
+                    else:
+                        st.info("Please select at least 2 columns to create a OneHotEncoding constraint.")
+
                 # Display current constraints
                 if st.session_state.constraints:
                     st.markdown("### Current Constraints")
