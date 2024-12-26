@@ -217,9 +217,13 @@ def get_value_input_for_sdtype(sdtype, label, key):
             help="Select the date",
             key=key
         )
-        return value.strftime('%Y-%m-%d')
+        # Handle both single date and date range returns
+        if isinstance(value, tuple):
+            if len(value) > 0:
+                return value[0].strftime('%Y-%m-%d')
+            return datetime.today().strftime('%Y-%m-%d')  # fallback to today's date
+        return value.strftime('%Y-%m-%d') if value else datetime.today().strftime('%Y-%m-%d')  # handle None
     elif sdtype in ['numerical', 'id']:
-        # For numerical types, return actual number instead of string
         return float(st.number_input(
             label,
             value=0,
