@@ -7,6 +7,43 @@ from datetime import datetime
 
 UPLOAD_DIR = "uploads"
 
+def validate_metadata_constraints(metadata_content):
+    """Validate metadata constraints before processing"""
+    validation_errors = []
+    
+    if 'constraints' in metadata_content:
+        for constraint in metadata_content['constraints']:
+            constraint_class = constraint.get('constraint_class')
+            params = constraint.get('constraint_parameters', {})
+            
+            if constraint_class == 'ScalarRange':
+                # Validate required parameters exist
+                required_params = ['column_name', 'low_value', 'high_value']
+                for param in required_params:
+                    if param not in params:
+                        validation_errors.append(f"❌ ScalarRange constraint missing required parameter: {param}")
+                        continue
+                
+                # Validate numeric values are not strings
+                if isinstance(params['low_value'], str) or isinstance(params['high_value'], str):
+                    validation_errors.append(
+                        f"❌ ScalarRange constraint error: 'low_value' and 'high_value' must be numeric, not strings. "
+                        f"Current values: low_value={params['low_value']} ({type(params['low_value']).__name__}), "
+                        f"high_value={params['high_value']} ({type(params['high_value']).__name__})"
+                    )
+                    continue
+                
+                # Try converting to float to ensure they're valid numbers
+                try:
+                    low_value = float(params['low_value'])
+                    high_value = float(params['high_value'])
+                except (TypeError, ValueError):
+                    validation_errors.append(
+                        f"❌ ScalarRange constraint error: Invalid numeric values for boundaries"
+                    )
+    
+    return validation_errors
+
 st.title("Metadata Validator")
 
 st.markdown("""
@@ -16,7 +53,7 @@ Validate your saved metadata files:
 1. Select a metadata file
 2. Validate its structure
 3. View validation results
-4. Visualize metadata relationships
+4. Check data compliance
 """)
 
 # Get all JSON files from the uploads directory
