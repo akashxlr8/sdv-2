@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import json
+import re
 from sdv.evaluation.single_table import evaluate_quality
 from sdv.evaluation.single_table import get_column_plot
 from sdv.evaluation.single_table import get_column_pair_plot
@@ -9,6 +10,8 @@ from sdv.evaluation.single_table import run_diagnostic
 from sdv.metadata import SingleTableMetadata
 import plotly.graph_objects as go
 from datetime import datetime
+import sdmetrics
+
 
 UPLOAD_DIR = "uploads"
 
@@ -109,12 +112,14 @@ if os.path.exists(UPLOAD_DIR):
                             # Display the progress in Streamlit
                             progress_placeholder.text(output)
                             
-                            # Parse scores from the output
-                            import re
+                            # Parse scores with error handling
+                            def extract_score(pattern):
+                                match = re.search(pattern, output)
+                                return float(match.group(1)) if match else 0.0
                             
-                            validity_score = float(re.search(r'Data Validity Score: (\d+\.?\d*)%', output).group(1))
-                            structure_score = float(re.search(r'Data Structure Score: (\d+\.?\d*)%', output).group(1))
-                            overall_score = float(re.search(r'Overall Score \(Average\): (\d+\.?\d*)%', output).group(1))
+                            validity_score = extract_score(r'Data Validity Score: (\d+\.?\d*)%')
+                            structure_score = extract_score(r'Data Structure Score: (\d+\.?\d*)%')
+                            overall_score = extract_score(r'Overall Score \(Average\): (\d+\.?\d*)%')
                             
                             # Display scores
                             st.markdown("### Diagnostic Results")
@@ -136,9 +141,9 @@ if os.path.exists(UPLOAD_DIR):
                                 )
                             
                             # Display detailed results if available
-                            if hasattr(diagnostic, 'report'):
+                            if hasattr(diagnostic, 'get_details'):
                                 st.markdown("### Detailed Diagnostic Results")
-                                st.json(diagnostic.report)
+                                st.json(diagnostic.__dict__)
                             
                             if overall_score < 100:
                                 st.warning("Some issues were found in the synthetic data. Check the detailed results above.")
@@ -172,9 +177,9 @@ if os.path.exists(UPLOAD_DIR):
                             if isinstance(properties, list):
                                 # Handle list format
                                 properties_df = pd.DataFrame([{
-                                    'Property': prop['property_name'],
-                                    'Score': f"{prop['score']:.3f}",
-                                    'Description': prop.get('description', 'N/A')
+                                    'Property': getattr(prop, '__name__', str(prop)),
+                                    'Score': f"{getattr(prop, 'score', 0.0):.3f}",
+                                    'Description': getattr(prop, 'description', 'N/A')
                                 } for prop in properties])
                             elif isinstance(properties, dict):
                                 # Handle dictionary format
@@ -187,9 +192,9 @@ if os.path.exists(UPLOAD_DIR):
                                 # Handle string format or other cases
                                 st.write("Quality Report Properties:", properties)
                                 properties_df = pd.DataFrame({
-                                    'Property': ['Overall Quality'],
-                                    'Score': [f"{quality_report.get_score():.3f}"],
-                                    'Description': ['Overall synthetic data quality score']
+                                    'Property': [getattr(prop, 'property_name', str(prop)) for prop in properties],
+                                    'Score': [f"{getattr(prop, 'score', 0.0):.3f}" for prop in properties],
+                                    'Description': [getattr(prop, 'description', 'N/A') for prop in properties]
                                 })
                             
                             # Display using native Streamlit table
@@ -214,55 +219,43 @@ if os.path.exists(UPLOAD_DIR):
                         
                         if selected_column:
                             try:
-                                # Determine plot type based on sdtype
-                                plot_kwargs = {}
-                                sdtype = column_types[selected_column]
-                                
-                                if sdtype == 'id':
-                                    plot_kwargs['plot_type'] = 'distplot'
-                                elif sdtype in ['numerical', 'integer']:
-                                    plot_kwargs['plot_type'] = 'distplot'
-                                elif sdtype in ['categorical', 'boolean']:
-                                    plot_kwargs['plot_type'] = 'bar'
-                                elif sdtype == 'datetime':
-                                    plot_kwargs['plot_type'] = 'distplot'
-                                
-                                # Create column plot with appropriate plot type
+                                # Create simple column plot using SDMetrics
                                 fig = get_column_plot(
                                     real_data=original_df,
                                     synthetic_data=synthetic_df,
                                     column_name=selected_column,
-                                    metadata=metadata,
-                                    **plot_kwargs
+                                    metadata=metadata
                                 )
                                 
-                                st.plotly_chart(fig, use_container_width=True)
+                                # Display the plot using Streamlit
+                                st.plotly_chart(fig)
                                 
                                 # Option for pair plot
                                 st.markdown("### Column Pair Visualization")
+                                
+                                # Create a list of columns excluding the currently selected one
+                                remaining_columns = [col for col in original_df.columns if col != selected_column]
+                                
                                 second_column = st.selectbox(
                                     "Select second column for pair visualization:",
-                                    [col for col in original_df.columns if col != selected_column],
-                                    format_func=lambda x: f"{x} ({column_types[x]})"
+                                    options=remaining_columns,
+                                    format_func=lambda x: f"{x} ({column_types[x]})",
+                                    key="second_column"
                                 )
                                 
                                 if second_column:
-                                    st.info("""
-                                    Pair plot shows the relationship between two columns:
-                                    - For numerical pairs: scatter plot with density contours
-                                    - For categorical pairs: heatmap of frequencies
-                                    - For mixed types: box plots or violin plots
-                                    """)
-                                    
-                                    pair_fig = get_column_pair_plot(
-                                        real_data=original_df,
-                                        synthetic_data=synthetic_df,
-                                        column_names=[selected_column, second_column],
-                                        metadata=metadata
-                                    )
-                                    
-                                    st.plotly_chart(pair_fig, use_container_width=True)
-                                    
+                                    with st.spinner("Generating pair plot..."):
+                                        from sdmetrics.visualization import get_column_pair_plot
+                                        
+                                        pair_fig = get_column_pair_plot(
+                                            real_data=original_df,
+                                            synthetic_data=synthetic_df,
+                                            column_names=[selected_column, second_column]
+                                        )
+                                        
+                                        # Display the pair plot using Streamlit
+                                        st.plotly_chart(pair_fig)
+                                        
                             except Exception as e:
                                 st.error(f"Error creating visualization: {str(e)}")
                 
