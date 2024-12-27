@@ -136,6 +136,10 @@ if json_files:
     if st.session_state.metadata_validated:
         st.markdown("### Metadata Structure")
         metadata_content = st.session_state.metadata_content
+        if metadata_content is None:
+            st.error("No metadata content available. Please validate metadata first.")
+            st.stop()
+            
         table_name = list(metadata_content['tables'].keys())[0]
         table_info = metadata_content['tables'][table_name]
         
@@ -185,6 +189,15 @@ if json_files:
                     metadata = Metadata.load_from_json(st.session_state.metadata_path)
                     table_name = list(metadata.tables.keys())[0]
                     table_metadata = metadata.tables[table_name]
+                    
+                    # First validate metadata constraints with the DataFrame
+                    validation_errors = validate_metadata_constraints(st.session_state.metadata_content, df)
+                    
+                    if validation_errors:
+                        st.error("Data Validation Failed")
+                        for error in validation_errors:
+                            st.write(error)
+                        st.stop()
                     
                     validation_errors = []
                     violation_details = []
