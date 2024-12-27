@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import json
-from sdv.metadata import Metadata, SingleTableMetadata
+from sdv.metadata import Metadata
 from datetime import datetime
 from utils.file_naming import generate_filename
 
@@ -40,69 +40,44 @@ sdtype_reference = {
     'longitude': 'Geographical longitude coordinates'
 }
 
+def display_table_settings(metadata):
+    """Display table-level settings like primary key"""
+    st.markdown("### Table Settings")
+    
+    # Primary Key Selection
+    primary_key = st.selectbox(
+        "Primary Key",
+        options=["None"] + list(metadata.columns.keys()),
+        index=0 if metadata.primary_key is None else list(metadata.columns.keys()).index(metadata.primary_key) + 1,
+        help="Select the primary key column (must contain unique values)"
+    )
+    
+    if primary_key != "None":
+        metadata.set_primary_key(primary_key)
+    else:
+        metadata.set_primary_key(None)
+
 def detect_single_table_metadata(df, table_name):
     """Detect metadata for a single table using SDV"""
-    metadata = SingleTableMetadata()
-    metadata.detect_from_dataframe(data=df)
-    
-    # Explicitly remove primary key setting
-    metadata.set_primary_key(None)
-    
-    return metadata
+    metadata = Metadata()
+    metadata.add_table(
+        name=table_name,
+        data=df
+    )
+    return metadata.tables[table_name]
 
 def display_column_metadata_editor(metadata, table_name, column_name, column_metadata):
     """Display editor for a single column's metadata"""
     st.markdown(f"#### {column_name}")
     
-    col1, col2 = st.columns([1, 1])
-    
-    # Get current sdtype with fallback to 'categorical'
-    current_sdtype = column_metadata.get('sdtype', 'categorical')
-    
-    # Updated sdtype options according to SDV documentation
-    sdtype_options = [
-        'numerical',
-        'categorical',
-        'boolean',
-        'datetime',
-        'id',
-        'vin',
-        'license_plate',
-        'iban',
-        'swift11',
-        'swift8',
-        'credit_card_number',
-        'address',
-        'email',
-        'name',
-        'phone_number',
-        'ssn',
-        'first_name',
-        'last_name',
-        'gender',
-        'city',
-        'country',
-        'country_code',
-        'company',
-        'job',
-        'ipv4',
-        'ipv6',
-        'mac_address',
-        'latitude',
-        'longitude'
-    ]
-    
-    # If current_sdtype is not in our options, default to categorical
-    default_index = sdtype_options.index('categorical')
-    if current_sdtype in sdtype_options:
-        default_index = sdtype_options.index(current_sdtype)
+    col1, col2 = st.columns(2)
     
     with col1:
         sdtype = st.selectbox(
             "SDType",
-            options=sdtype_options,
+            options=list(sdtype_reference.keys()),
             key=f"{table_name}_{column_name}_sdtype",
-            index=default_index
+            index=list(sdtype_reference.keys()).index(column_metadata['sdtype'])
         )
     
     with col2:
@@ -120,7 +95,18 @@ def display_column_metadata_editor(metadata, table_name, column_name, column_met
                 sdtype=sdtype,
                 computer_representation=computer_representation
             )
-        
+        elif sdtype == 'id':
+            regex_format = st.text_input(
+                "Regex Format",
+                value=column_metadata.get('regex_format', '[0-9]+'),
+                help="Regular expression pattern for ID generation",
+                key=f"{table_name}_{column_name}_regex"
+            )
+            metadata.update_column(
+                column_name=column_name,
+                sdtype=sdtype,
+                regex_format=regex_format
+            )
         elif sdtype == 'datetime':
             datetime_format = st.text_input(
                 "DateTime Format",
@@ -132,45 +118,20 @@ def display_column_metadata_editor(metadata, table_name, column_name, column_met
                 sdtype=sdtype,
                 datetime_format=datetime_format
             )
-        
-        elif sdtype == 'id':
-            regex_format = st.text_input(
-                "Regex Format",
-                value=column_metadata.get('regex_format', '[0-9]+'),
-                key=f"{table_name}_{column_name}_regex"
-            )
-            if not regex_format:
-                regex_format = '[0-9]+'
-            try:
-                metadata.update_column(
-                    column_name=column_name,
-                    sdtype=sdtype,
-                    regex_format=regex_format
-                )
-            except Exception as e:
-                st.error(f"Invalid regex format: {str(e)}")
-                metadata.update_column(
-                    column_name=column_name,
-                    sdtype=sdtype,
-                    regex_format='[0-9]+'
-                )
-        
         else:
-            # For all other sdtypes, no additional parameters needed
             metadata.update_column(
                 column_name=column_name,
                 sdtype=sdtype
             )
-
+    
     return metadata
 
 def save_metadata_json(metadata, table_name, timestamp):
-    """Save metadata in SDV's JSON format"""
     metadata_json = {
         "tables": {
             table_name: {
                 "columns": {},
-                "primary_key": None,
+                "primary_key": metadata.primary_key,
                 "sequence_key": None,
                 "alternate_keys": [],
                 "semantic_types": {},
@@ -183,7 +144,7 @@ def save_metadata_json(metadata, table_name, timestamp):
         "constraints": []
     }
     
-    # Process columns using SingleTableMetadata's column properties
+    # Process columns
     for column_name, column_info in metadata.columns.items():
         column_data = {
             "sdtype": column_info['sdtype']
@@ -196,7 +157,6 @@ def save_metadata_json(metadata, table_name, timestamp):
             column_data["datetime_format"] = column_info.get('datetime_format', '%Y-%m-%d')
         elif column_info['sdtype'] == 'id':
             column_data["regex_format"] = column_info.get('regex_format', '[0-9]+')
-            metadata_json["tables"][table_name]["primary_key"] = column_name
             
         metadata_json["tables"][table_name]["columns"][column_name] = column_data
     
@@ -208,6 +168,8 @@ def save_metadata_json(metadata, table_name, timestamp):
         json.dump(metadata_json, f, indent=4)
     
     return metadata_filename
+
+
 
 def get_value_input_for_sdtype(sdtype, label, key):
     """Get appropriate input widget based on column sdtype"""
@@ -301,13 +263,13 @@ with tab1:
                                 with col1:
                                     # Get table name from metadata content
                                     table_name = list(metadata_content['tables'].keys())[0]
-                                    metadata = SingleTableMetadata()
+                                    metadata = Metadata()
                                     metadata.load_from_dict(metadata_content['tables'][table_name])
                                     column = st.selectbox(
                                         "Column", 
                                         metadata.columns.keys(),
                                         key=f"edit_scalar_col_{i}",
-                                        index=list(metadata.columns.keys()).index(constraint['constraint_parameters']['column_name'])
+                                        index=0  # Default to first column if previous column not found
                                     )
                                 with col2:
                                     low_value = st.number_input(
@@ -352,7 +314,7 @@ with tab1:
                     table_name = list(metadata_content['tables'].keys())[0]
                     
                     # Convert JSON metadata to SingleTableMetadata
-                    metadata = SingleTableMetadata()
+                    metadata = Metadata()
                     table_metadata = metadata_content['tables'][table_name]
                     
                     for column_name, column_props in table_metadata['columns'].items():
@@ -434,6 +396,7 @@ if os.path.exists(UPLOAD_DIR):
                     df = pd.read_csv(file_path)
                     table_name = os.path.splitext(selected_file)[0].upper()
                     metadata = detect_single_table_metadata(df, table_name)
+
                     
                     # Explicitly remove primary key setting for single table
                     metadata.set_primary_key(None)
@@ -443,18 +406,22 @@ if os.path.exists(UPLOAD_DIR):
                 # Display metadata editor
                 st.markdown(f"### Editing Metadata for: {selected_file}")
                 metadata = st.session_state.metadata_dict[selected_file]
+                table_name = os.path.splitext(selected_file)[0].upper()
                 
                 # Display column editors
-                for column_name in metadata.columns:
-                    column_metadata = metadata.columns[column_name]
+                for column_name, column_metadata in metadata.columns.items():
                     metadata = display_column_metadata_editor(
-                        metadata,
-                        selected_file,
-                        column_name,
+                        metadata, 
+                        table_name,
+                        column_name, 
                         column_metadata
                     )
-                    st.session_state.metadata_dict[selected_file] = metadata
                 
+                # Display table settings (including primary key)
+                display_table_settings(metadata)
+                
+                # Constraints section follows...
+
                 # Add after the column editors section, before the save button
                 st.markdown("### Constraints Configuration")
 
