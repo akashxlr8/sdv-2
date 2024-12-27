@@ -19,6 +19,19 @@ def validate_metadata_constraints(metadata_content, df=None):
     """Validate metadata constraints before processing"""
     validation_errors = []
     
+    # Validate column data types and computer representations
+    table_name = list(metadata_content['tables'].keys())[0]
+    table_info = metadata_content['tables'][table_name]
+    
+    if df is not None:
+        for col_name, col_info in table_info['columns'].items():
+            if col_info['sdtype'] == 'numerical':
+                if 'computer_representation' in col_info:
+                    if col_info['computer_representation'].startswith('Int') and any('.' in str(x) for x in df[col_name].dropna()):
+                        validation_errors.append(
+                            f"❌ Column '{col_name}' is set to {col_info['computer_representation']} but contains float values"
+                        )
+    
     if 'constraints' in metadata_content:
         for constraint in metadata_content['constraints']:
             constraint_class = constraint.get('constraint_class')
