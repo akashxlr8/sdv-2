@@ -7,7 +7,15 @@ from datetime import datetime
 
 UPLOAD_DIR = "uploads"
 
-def validate_metadata_constraints(metadata_content):
+def convert_column_data(column_name):
+    """Convert column data to numeric format for comparison"""
+    try:
+        return pd.to_numeric(df[column_name], errors='coerce')
+    except:
+        st.error(f"Error converting column {column_name} to numeric format")
+        return pd.Series([float('nan')] * len(df))
+
+def validate_metadata_constraints(metadata_content, df=None):
     """Validate metadata constraints before processing"""
     validation_errors = []
     
