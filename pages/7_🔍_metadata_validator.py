@@ -38,30 +38,23 @@ def validate_metadata_constraints(metadata_content, df=None):
             params = constraint.get('constraint_parameters', {})
             
             if constraint_class == 'ScalarRange':
-                # Validate required parameters exist
-                required_params = ['column_name', 'low_value', 'high_value']
-                for param in required_params:
-                    if param not in params:
-                        validation_errors.append(f"❌ ScalarRange constraint missing required parameter: {param}")
+                # Get column metadata
+                table_name = list(metadata_content['tables'].keys())[0]
+                table_info = metadata_content['tables'][table_name]
+                column_name = params.get('column_name')
+                
+                if column_name and column_name in table_info['columns']:
+                    column_sdtype = table_info['columns'][column_name]['sdtype']
+                    
+                    # Skip validation for datetime columns
+                    if column_sdtype == 'datetime':
                         continue
-                
-                # Validate numeric values are not strings
-                if isinstance(params['low_value'], str) or isinstance(params['high_value'], str):
-                    validation_errors.append(
-                        f"❌ ScalarRange constraint error: 'low_value' and 'high_value' must be numeric, not strings. "
-                        f"Current values: low_value={params['low_value']} ({type(params['low_value']).__name__}), "
-                        f"high_value={params['high_value']} ({type(params['high_value']).__name__})"
-                    )
-                    continue
-                
-                # Try converting to float to ensure they're valid numbers
-                try:
-                    low_value = float(params['low_value'])
-                    high_value = float(params['high_value'])
-                except (TypeError, ValueError):
-                    validation_errors.append(
-                        f"❌ ScalarRange constraint error: Invalid numeric values for boundaries"
-                    )
+                    
+                    # Continue with existing numeric validation for other types
+                    if isinstance(params['low_value'], str) or isinstance(params['high_value'], str):
+                        validation_errors.append(
+                            f"❌ ScalarRange constraint error: 'low_value' and 'high_value' must be numeric for non-datetime columns"
+                        )
     
     return validation_errors
 
