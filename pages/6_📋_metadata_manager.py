@@ -581,41 +581,76 @@ if os.path.exists(UPLOAD_DIR):
                         column_sdtype = metadata.columns[column]['sdtype']
                     
                     with col2:
-                        low_value = get_value_input_for_sdtype(
-                            column_sdtype,
-                            "Minimum Value",
-                            f"scalar_range_low_{column}"
-                        )
+                        if column_sdtype == 'datetime':
+                            # Get the datetime format from column metadata
+                            datetime_format = metadata.columns[column].get('datetime_format', '%Y-%m-%d %H:%M:%S')
+                            
+                            # Default value only if no user input exists
+                            default_low = datetime.now().replace(year=2020, month=1, day=1).strftime(datetime_format)
+                            if f"scalar_range_low_{column}" not in st.session_state:
+                                st.session_state[f"scalar_range_low_{column}"] = default_low
+                            
+                            low_value = st.text_input(
+                                "Minimum Date",
+                                value=st.session_state[f"scalar_range_low_{column}"],
+                                key=f"scalar_range_low_{column}",
+                                help=f"Enter date in format: {datetime_format}"
+                            )
+                            st.caption(f"Using format: {datetime_format}")
+                        else:
+                            low_value = get_value_input_for_sdtype(
+                                column_sdtype,
+                                "Minimum Value",
+                                f"scalar_range_low_{column}"
+                            )
                     
                     with col3:
-                        high_value = get_value_input_for_sdtype(
-                            column_sdtype,
-                            "Maximum Value",
-                            f"scalar_range_high_{column}"
-                        )
+                        if column_sdtype == 'datetime':
+                            # Default value only if no user input exists
+                            default_high = datetime.now().replace(year=2023, month=12, day=31).strftime(datetime_format)
+                            if f"scalar_range_high_{column}" not in st.session_state:
+                                st.session_state[f"scalar_range_high_{column}"] = default_high
+                            
+                            high_value = st.text_input(
+                                "Maximum Date",
+                                value=st.session_state[f"scalar_range_high_{column}"],
+                                key=f"scalar_range_high_{column}",
+                                help=f"Enter date in format: {datetime_format}"
+                            )
+                        else:
+                            high_value = get_value_input_for_sdtype(
+                                column_sdtype,
+                                "Maximum Value",
+                                f"scalar_range_high_{column}"
+                            )
                     
                     strict = st.checkbox("Strict Boundaries", value=False)
                     
                     if st.button("Add ScalarRange Constraint"):
                         try:
-                            # Convert values to appropriate type based on sdtype
-                            if column_sdtype in ['numerical', 'id']:
-                                low_value = float(low_value)
-                                high_value = float(high_value)
+                            if column_sdtype == 'datetime':
+                                # Validate dates match the column's format
+                                datetime_format = metadata.columns[column].get('datetime_format', '%Y-%m-%d %H:%M:%S')
+                                datetime.strptime(low_value, datetime_format)
+                                datetime.strptime(high_value, datetime_format)
+                            else:
+                                if column_sdtype in ['numerical', 'id']:
+                                    low_value = float(low_value)
+                                    high_value = float(high_value)
                             
                             new_constraint = {
                                 'constraint_class': 'ScalarRange',
                                 'constraint_parameters': {
                                     'column_name': column,
-                                    'low_value': low_value,  # Will be stored as actual number
-                                    'high_value': high_value,  # Will be stored as actual number
+                                    'low_value': low_value,
+                                    'high_value': high_value,
                                     'strict_boundaries': strict
                                 }
                             }
                             st.session_state.constraints.append(new_constraint)
                             st.success("Constraint added!")
-                        except ValueError:
-                            st.error("Invalid numeric values provided for ScalarRange constraint")
+                        except ValueError as e:
+                            st.error(f"Invalid date format. Please use: {datetime_format}")
 
                 elif constraint_type == "Positive":
                     column = st.selectbox("Column", metadata.columns.keys())
