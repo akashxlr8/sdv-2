@@ -8,6 +8,13 @@ from utils.file_naming import generate_filename
 
 UPLOAD_DIR = "uploads"
 
+def detect_metadata(file_path):
+    """Detect metadata from a CSV file using SDV's SingleTableMetadata."""
+    df = pd.read_csv(os.path.join(UPLOAD_DIR, file_path))
+    metadata = SingleTableMetadata()
+    metadata.detect_from_dataframe(df)
+    return metadata
+
 # Define sdtype reference dictionary
 sdtype_reference = {
     'numerical': 'Numbers (integers or floats) - e.g., age, price, quantity',
@@ -70,7 +77,6 @@ def display_column_metadata_editor(metadata, table_name, column_name, column_met
     col1, col2 = st.columns(2)
     
     with col1:
-        # Get current sdtype, default to 'categorical' if unknown
         current_sdtype = column_metadata.get('sdtype', 'categorical')
         if current_sdtype not in sdtype_reference:
             current_sdtype = 'categorical'
@@ -78,7 +84,7 @@ def display_column_metadata_editor(metadata, table_name, column_name, column_met
         sdtype = st.selectbox(
             "SDType",
             options=list(sdtype_reference.keys()),
-            key=f"{table_name}_{column_name}_sdtype",
+            key=f"sdtype_{table_name}_{column_name}",
             index=list(sdtype_reference.keys()).index(current_sdtype)
         )
     
@@ -86,9 +92,9 @@ def display_column_metadata_editor(metadata, table_name, column_name, column_met
         if sdtype == 'numerical':
             computer_representation = st.selectbox(
                 "Computer Representation",
-                options=['Int8', 'Int16', 'Int32', 'Int64', 'Float'],
-                key=f"{table_name}_{column_name}_repr",
-                index=['Int8', 'Int16', 'Int32', 'Int64', 'Float'].index(
+                ["Int64", "Int32", "Int16", "Int8", "Float"],
+                key=f"comp_rep_{table_name}_{column_name}",
+                index=["Int64", "Int32", "Int16", "Int8", "Float"].index(
                     column_metadata.get('computer_representation', 'Float')
                 )
             )
@@ -110,10 +116,26 @@ def display_column_metadata_editor(metadata, table_name, column_name, column_met
                 regex_format=regex_format
             )
         elif sdtype == 'datetime':
+            st.info("""
+            Common datetime format codes:
+            - %Y: Year with century (2024)
+            - %m: Month as zero-padded number (01-12)
+            - %d: Day of the month as zero-padded number (01-31)
+            - %H: Hour (24-hour clock) as zero-padded number (00-23)
+            - %M: Minute as zero-padded number (00-59)
+            - %S: Second as zero-padded number (00-59)
+            
+            Examples:
+            - %Y-%m-%d = 2024-03-15
+            - %Y-%m-%d %H:%M:%S = 2024-03-15 14:30:00
+            - %d/%m/%Y = 15/03/2024
+            """)
+            
             datetime_format = st.text_input(
                 "DateTime Format",
-                value=column_metadata.get('datetime_format', '%Y-%m-%d'),
-                key=f"{table_name}_{column_name}_format"
+                value=column_metadata.get('datetime_format', '%Y-%m-%d %H:%M:%S'),
+                key=f"{table_name}_{column_name}_format",
+                help="Enter the format that matches your data"
             )
             metadata.update_column(
                 column_name=column_name,
@@ -195,6 +217,36 @@ def get_value_input_for_sdtype(sdtype, label, key):
         ))
     else:
         return st.text_input(label, key=key)
+
+def load_metadata_from_json(json_path):
+    """Load metadata from JSON file and create SingleTableMetadata instance"""
+    with open(json_path, 'r') as f:
+        metadata_json = json.load(f)
+    
+    table_name = list(metadata_json['tables'].keys())[0]
+    table_info = metadata_json['tables'][table_name]
+    
+    metadata = SingleTableMetadata()
+    
+    # Load columns with their properties
+    for col_name, col_info in table_info['columns'].items():
+        update_args = {'sdtype': col_info['sdtype']}
+        
+        # Add additional properties based on sdtype
+        if col_info['sdtype'] == 'numerical' and 'computer_representation' in col_info:
+            update_args['computer_representation'] = col_info['computer_representation']
+        elif col_info['sdtype'] == 'datetime' and 'datetime_format' in col_info:
+            update_args['datetime_format'] = col_info['datetime_format']
+        elif col_info['sdtype'] == 'id' and 'regex_format' in col_info:
+            update_args['regex_format'] = col_info['regex_format']
+        
+        metadata.update_column(col_name, **update_args)
+    
+    # Load constraints if they exist
+    if 'constraints' in metadata_json:
+        st.session_state.constraints = metadata_json['constraints']
+    
+    return metadata, table_name
 
 st.title("Metadata Manager")
 
@@ -394,15 +446,12 @@ if os.path.exists(UPLOAD_DIR):
                 st.markdown("### Metadata Editor")
                 # Auto-detect metadata for selected file
                 if selected_file not in st.session_state.metadata_dict:
-                    file_path = os.path.join(UPLOAD_DIR, selected_file)
-                    df = pd.read_csv(file_path)
-                    table_name = os.path.splitext(selected_file)[0].upper()
-                    metadata = detect_single_table_metadata(df, table_name)
-
-                    
-                    # Explicitly remove primary key setting for single table
-                    metadata.set_primary_key(None)
-                    
+                    # Check if metadata JSON exists for this file
+                    metadata_json_path = os.path.join(UPLOAD_DIR, f"metadata_{os.path.splitext(selected_file)[0]}.json")
+                    if os.path.exists(metadata_json_path):
+                        metadata = load_metadata_from_json(metadata_json_path)
+                    else:
+                        metadata = detect_metadata(selected_file)
                     st.session_state.metadata_dict[selected_file] = metadata
                 
                 # Display metadata editor
