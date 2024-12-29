@@ -585,14 +585,13 @@ if os.path.exists(UPLOAD_DIR):
                             # Get the datetime format from column metadata
                             datetime_format = metadata.columns[column].get('datetime_format', '%Y-%m-%d %H:%M:%S')
                             
-                            # Default value only if no user input exists
-                            default_low = datetime.now().replace(year=2020, month=1, day=1).strftime(datetime_format)
+                            # Only set default if session state doesn't exist
                             if f"scalar_range_low_{column}" not in st.session_state:
+                                default_low = datetime.now().replace(year=2020, month=1, day=1).strftime(datetime_format)
                                 st.session_state[f"scalar_range_low_{column}"] = default_low
                             
                             low_value = st.text_input(
                                 "Minimum Date",
-                                value=st.session_state[f"scalar_range_low_{column}"],
                                 key=f"scalar_range_low_{column}",
                                 help=f"Enter date in format: {datetime_format}"
                             )
