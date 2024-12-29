@@ -21,7 +21,7 @@ def main():
     - 📊 **Data Analysis**: Explore and visualize data
     - 🤖 **ML Models**: Try out machine learning models
     - ℹ️ **About**: Learn more about the project
-    - 📁 **Uploaded Files**: View and manage uploaded files
+    - 📁 **File Manager**: View and manage uploaded files
     - 🔄 **Synthetic Data**: Generate synthetic data from uploaded files
     - 📋 **Metadata Manager**: Detect and manage metadata
     """)
