@@ -304,10 +304,10 @@ if json_files:
                                     datetime_format = table_metadata.columns[column].get('datetime_format', '%Y-%m-%d %H:%M:%S')
                                     try:
                                         # Convert constraint boundaries to datetime
-                                        low_dt = datetime.strptime(params['low_value'], datetime_format)
-                                        high_dt = datetime.strptime(params['high_value'], datetime_format)
+                                        low_dt = datetime.strptime(str(params['low_value']), datetime_format)
+                                        high_dt = datetime.strptime(str(params['high_value']), datetime_format)
                                         # Convert column to datetime
-                                        column_values = pd.to_datetime(df[column])
+                                        column_values = pd.to_datetime(df[column], format=datetime_format)
                                         
                                         # Check violations
                                         strict_boundaries = params.get('strict_boundaries', False)
