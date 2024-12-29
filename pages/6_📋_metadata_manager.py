@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import json
-from sdv.metadata import SingleTableMetadata
+from sdv.metadata import Metadata, SingleTableMetadata
 from datetime import datetime
 from utils.file_naming import generate_filename
 
