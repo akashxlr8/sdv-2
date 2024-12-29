@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import json
-from sdv.metadata import Metadata
+from sdv.metadata import SingleTableMetadata
 from datetime import datetime
 from utils.file_naming import generate_filename
 
@@ -59,12 +59,9 @@ def display_table_settings(metadata):
 
 def detect_single_table_metadata(df, table_name):
     """Detect metadata for a single table using SDV"""
-    metadata = Metadata()
-    metadata.add_table(
-        name=table_name,
-        data=df
-    )
-    return metadata.tables[table_name]
+    metadata = SingleTableMetadata()
+    metadata.detect_from_dataframe(df)
+    return metadata
 
 def display_column_metadata_editor(metadata, table_name, column_name, column_metadata):
     """Display editor for a single column's metadata"""
@@ -73,11 +70,16 @@ def display_column_metadata_editor(metadata, table_name, column_name, column_met
     col1, col2 = st.columns(2)
     
     with col1:
+        # Get current sdtype, default to 'categorical' if unknown
+        current_sdtype = column_metadata.get('sdtype', 'categorical')
+        if current_sdtype not in sdtype_reference:
+            current_sdtype = 'categorical'
+            
         sdtype = st.selectbox(
             "SDType",
             options=list(sdtype_reference.keys()),
             key=f"{table_name}_{column_name}_sdtype",
-            index=list(sdtype_reference.keys()).index(column_metadata['sdtype'])
+            index=list(sdtype_reference.keys()).index(current_sdtype)
         )
     
     with col2:
