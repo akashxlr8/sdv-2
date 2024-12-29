@@ -240,17 +240,43 @@ if json_files:
                         
                         # Check data types
                         sdtype = col_info['sdtype']
-                        if sdtype == 'numerical':
+                        if sdtype == 'datetime':
+                            datetime_format = col_info.get('datetime_format', '%Y-%m-%d %H:%M:%S')
+                            try:
+                                # Try to parse a few sample values to verify format
+                                sample_values = df[col_name].head().tolist()
+                                for val in sample_values:
+                                    try:
+                                        datetime.strptime(str(val), datetime_format)
+                                    except ValueError:
+                                        validation_errors.append(
+                                            f"❌ Column '{col_name}' contains values not matching format '{datetime_format}'. Example: '{val}'"
+                                        )
+                                        break
+                            except Exception as e:
+                                validation_errors.append(f"❌ Column '{col_name}' contains invalid datetime values: {str(e)}")
+                        elif sdtype == 'numerical':
                             if not pd.api.types.is_numeric_dtype(df[col_name]):
                                 validation_errors.append(f"❌ Column '{col_name}' should be numerical")
-                        elif sdtype == 'datetime':
-                            try:
-                                df[col_name] = pd.to_datetime(df[col_name])
-                            except:
-                                validation_errors.append(f"❌ Column '{col_name}' contains invalid datetime values")
                         elif sdtype == 'boolean':
                             if not pd.api.types.is_bool_dtype(df[col_name].dtype):
                                 validation_errors.append(f"❌ Column '{col_name}' should be boolean")
+                        elif sdtype == 'id':
+                            # Get regex pattern from metadata
+                            regex_pattern = col_info.get('regex_format', '[0-9]+')
+                            try:
+                                # Check if all non-null values match the regex pattern
+                                invalid_ids = df[col_name].dropna().astype(str).str.match(regex_pattern) == False
+                                invalid_values = df[col_name][invalid_ids]
+                                if not invalid_values.empty:
+                                    validation_errors.append(
+                                        f"❌ Column '{col_name}' contains values not matching regex pattern '{regex_pattern}'. "
+                                        f"Examples: {', '.join(map(str, invalid_values.head(3)))}"
+                                    )
+                            except Exception as e:
+                                validation_errors.append(
+                                    f"❌ Error validating regex pattern for column '{col_name}': {str(e)}"
+                                )
                     
                     # Check constraints if present
                     metadata_content = st.session_state.metadata_content or {}
