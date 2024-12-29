@@ -38,24 +38,52 @@ def validate_metadata_constraints(metadata_content, df=None):
             params = constraint.get('constraint_parameters', {})
             
             if constraint_class == 'ScalarRange':
-                # Get column metadata
-                table_name = list(metadata_content['tables'].keys())[0]
-                table_info = metadata_content['tables'][table_name]
                 column_name = params.get('column_name')
                 
                 if column_name and column_name in table_info['columns']:
                     column_sdtype = table_info['columns'][column_name]['sdtype']
                     
-                    # Skip validation for datetime columns
                     if column_sdtype == 'datetime':
-                        continue
-                    
-                    # Continue with existing numeric validation for other types
-                    if isinstance(params['low_value'], str) or isinstance(params['high_value'], str):
-                        validation_errors.append(
-                            f"❌ ScalarRange constraint error: 'low_value' and 'high_value' must be numeric for non-datetime columns"
-                        )
-    
+                        # Get the datetime format from column metadata
+                        datetime_format = table_info['columns'][column_name].get('datetime_format', '%Y-%m-%d %H:%M:%S')
+                        
+                        try:
+                            low_dt = datetime.strptime(params['low_value'], datetime_format)
+                            high_dt = datetime.strptime(params['high_value'], datetime_format)
+                        except ValueError:
+                            validation_errors.append(
+                                f"❌ ScalarRange constraint error: 'low_value' and 'high_value' must be in format '{datetime_format}' for column '{column_name}'"
+                            )
+                            continue
+                        
+                        if low_dt >= high_dt:
+                            validation_errors.append(
+                                f"❌ ScalarRange constraint: Low value must be earlier than high value for column '{column_name}'"
+                            )
+                            continue
+                    else:
+                        # Existing numerical or id validation
+                        if isinstance(params['low_value'], str) or isinstance(params['high_value'], str):
+                            validation_errors.append(
+                                f"❌ ScalarRange constraint error: 'low_value' and 'high_value' must be numeric for non-datetime columns"
+                            )
+                            continue
+                        
+                        try:
+                            low_value = float(params.get('low_value'))
+                            high_value = float(params.get('high_value'))
+                        except (TypeError, ValueError):
+                            validation_errors.append(
+                                f"❌ ScalarRange constraint: Invalid numeric values for boundaries in column '{column_name}'"
+                            )
+                            continue
+                        
+                        if low_value >= high_value:
+                            validation_errors.append(
+                                f"❌ ScalarRange constraint: Low value must be less than high value for column '{column_name}'"
+                            )
+                            continue
+                            
     return validation_errors
 
 st.title("Metadata Validator")
@@ -163,20 +191,29 @@ if json_files:
 
         # Data Validation Section
         st.markdown("### Validate Data Against Metadata")
+        
+        # Get CSV files
         csv_files = [f for f in os.listdir(UPLOAD_DIR) if f.endswith('.csv')]
         
         if csv_files:
-            selected_data = st.selectbox(
-                "Select a dataset to validate:",
-                csv_files,
-                key="data_validation_select"
+            selected_csv = st.selectbox(
+                "Select a CSV file to validate:",
+                csv_files
             )
             
-            if st.button("Validate Selected Data", key="validate_data_button"):
+            if selected_csv:
                 try:
-                    # Load the data
-                    data_path = os.path.join(UPLOAD_DIR, selected_data)
-                    df = pd.read_csv(data_path)
+                    df = pd.read_csv(os.path.join(UPLOAD_DIR, selected_csv))
+                    
+                    # Automatic Dataset Preview
+                    st.markdown("### Dataset Preview")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown(f"**Showing first 5 rows of {len(df)} total rows**")
+                    with col2:
+                        st.markdown(f"**Number of columns: {len(df.columns)}**")
+                    st.dataframe(df.head(), use_container_width=True)
+                    st.markdown("---")
                     
                     # Load metadata
                     metadata = Metadata.load_from_json(st.session_state.metadata_path)
@@ -229,55 +266,79 @@ if json_files:
                                     validation_errors.append("❌ ScalarRange constraint missing column_name")
                                     continue
                                 
-                                # Check if column exists and is numeric
+                                # Check if column exists
                                 if column not in table_metadata.columns:
                                     validation_errors.append(f"❌ ScalarRange constraint: Column '{column}' not found")
                                     continue
                                 
                                 sdtype = table_metadata.columns[column]['sdtype']
-                                if sdtype not in ['numerical', 'id']:
-                                    validation_errors.append(
-                                        f"❌ ScalarRange constraint: Column '{column}' must be numerical or id type, found {sdtype}"
-                                    )
-                                    continue
                                 
-                                # Validate boundary values
-                                try:
-                                    low_value = float(params.get('low_value'))
-                                    high_value = float(params.get('high_value'))
-                                except (TypeError, ValueError):
-                                    validation_errors.append(
-                                        f"❌ ScalarRange constraint: Invalid numeric values for boundaries in column '{column}'"
-                                    )
-                                    continue
-                                
-                                if low_value >= high_value:
-                                    validation_errors.append(
-                                        f"❌ ScalarRange constraint: Low value must be less than high value for column '{column}'"
-                                    )
-                                    continue
-                                
-                                # Now process the actual validation
-                                strict_boundaries = params.get('strict_boundaries', False)
-                                column_values = pd.to_numeric(df[column], errors='coerce')
-                                
-                                if strict_boundaries:
-                                    violations = (column_values <= low_value) | (column_values >= high_value)
-                                else:
-                                    violations = (column_values < low_value) | (column_values > high_value)
-                                
-                                violation_rows = violations[violations].index.tolist()
-                                if violation_rows:
-                                    boundary_type = "strictly between" if strict_boundaries else "between"
-                                    validation_errors.append(
-                                        f"❌ ScalarRange constraint violated: {column} should be {boundary_type} {low_value} and {high_value}"
-                                    )
-                                    violation_details.append({
-                                        'constraint': 'ScalarRange',
-                                        'columns': [column],
-                                        'violation_rows': violation_rows,
-                                        'details': df.loc[violation_rows, [column]]
-                                    })
+                                # Handle datetime columns
+                                if sdtype == 'datetime':
+                                    datetime_format = table_metadata.columns[column].get('datetime_format', '%Y-%m-%d %H:%M:%S')
+                                    try:
+                                        # Convert constraint boundaries to datetime
+                                        low_dt = datetime.strptime(params['low_value'], datetime_format)
+                                        high_dt = datetime.strptime(params['high_value'], datetime_format)
+                                        # Convert column to datetime
+                                        column_values = pd.to_datetime(df[column])
+                                        
+                                        # Check violations
+                                        strict_boundaries = params.get('strict_boundaries', False)
+                                        if strict_boundaries:
+                                            violations = (column_values <= low_dt) | (column_values >= high_dt)
+                                        else:
+                                            violations = (column_values < low_dt) | (column_values > high_dt)
+                                        
+                                        violation_rows = violations[violations].index.tolist()
+                                        if violation_rows:
+                                            boundary_type = "strictly between" if strict_boundaries else "between"
+                                            validation_errors.append(
+                                                f"❌ ScalarRange constraint violated: {column} should be {boundary_type} {params['low_value']} and {params['high_value']}"
+                                            )
+                                            violation_details.append({
+                                                'constraint': 'ScalarRange',
+                                                'columns': [column],
+                                                'violation_rows': violation_rows,
+                                                'details': df.loc[violation_rows, [column]]
+                                            })
+                                    except ValueError as e:
+                                        validation_errors.append(
+                                            f"❌ ScalarRange constraint error: Invalid datetime format for column '{column}'. Error: {str(e)}"
+                                        )
+                                        continue
+                                # Handle numerical columns
+                                elif sdtype in ['numerical', 'id']:
+                                    try:
+                                        # Convert values to float for comparison
+                                        low_value = float(params['low_value'])
+                                        high_value = float(params['high_value'])
+                                        column_values = pd.to_numeric(df[column], errors='coerce')
+                                        
+                                        # Check violations
+                                        strict_boundaries = params.get('strict_boundaries', False)
+                                        if strict_boundaries:
+                                            violations = (column_values <= low_value) | (column_values >= high_value)
+                                        else:
+                                            violations = (column_values < low_value) | (column_values > high_value)
+                                        
+                                        violation_rows = violations[violations].index.tolist()
+                                        if violation_rows:
+                                            boundary_type = "strictly between" if strict_boundaries else "between"
+                                            validation_errors.append(
+                                                f"❌ ScalarRange constraint violated: {column} should be {boundary_type} {low_value} and {high_value}"
+                                            )
+                                            violation_details.append({
+                                                'constraint': 'ScalarRange',
+                                                'columns': [column],
+                                                'violation_rows': violation_rows,
+                                                'details': df.loc[violation_rows, [column]]
+                                            })
+                                    except ValueError as e:
+                                        validation_errors.append(
+                                            f"❌ ScalarRange constraint error: Invalid numeric values for column '{column}'. Error: {str(e)}"
+                                        )
+                                        continue
                             
                             elif constraint_class == 'Inequality':
                                 low_col = params['low_column_name']
